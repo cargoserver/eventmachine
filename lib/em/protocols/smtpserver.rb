@@ -148,10 +148,14 @@ module EventMachine
       #
       # Chunksize is the number of data lines we'll buffer before
       # sending them to the application. TODO, make this user-configurable.
+      # 
+      # Maxsize ist the SIZE we report to the client after EHLO, defaults
+      # to 20MB.
       #
       @@parms = {
         :chunksize => 4000,
-        :verbose => false
+        :verbose => false,
+        :maxsize => 20000000
       }
       def self.parms= parms={}
         @@parms.merge!(parms)
@@ -293,15 +297,14 @@ module EventMachine
       def process_ehlo domain
         if receive_ehlo_domain domain
           send_data "250-#{get_server_domain}\r\n"
-          if @@parms[:starttls]
+          if @parms[:starttls]
             send_data "250-STARTTLS\r\n"
           end
-          if @@parms[:auth]
+          if @parms[:auth]
             send_data "250-AUTH PLAIN\r\n"
           end
           send_data "250-NO-SOLICITING\r\n"
-          # TODO, size needs to be configurable.
-          send_data "250 SIZE 20000000\r\n"
+          send_data "250 SIZE #{@parms[:maxsize]}\r\n"
           reset_protocol_state
           @state << :ehlo
         else
@@ -412,7 +415,7 @@ module EventMachine
       # TODO, must support user-supplied certificates.
       #
       def process_starttls
-        if @@parms[:starttls]
+        if @parms[:starttls]
           if @state.include?(:starttls)
             send_data "503 TLS Already negotiated\r\n"
           elsif ! @state.include?(:ehlo)
@@ -439,9 +442,9 @@ module EventMachine
       # path in case of delivery problems. All of that is left to the calling application.
       #
       def process_mail_from sender
-        if (@@parms[:starttls]==:required and !@state.include?(:starttls))
+        if (@parms[:starttls]==:required and !@state.include?(:starttls))
           send_data "550 This server requires STARTTLS before MAIL FROM\r\n"
-        elsif (@@parms[:auth]==:required and !@state.include?(:auth))
+        elsif (@parms[:auth]==:required and !@state.include?(:auth))
           send_data "550 This server requires authentication before MAIL FROM\r\n"
         elsif @state.include?(:mail_from)
           send_data "503 MAIL already given\r\n"
@@ -546,7 +549,7 @@ module EventMachine
           # slice off leading . if any
           ln.slice!(0...1) if ln[0] == ?.
           @databuffer << ln
-          if @databuffer.length > @@parms[:chunksize]
+          if @databuffer.length > @parms[:chunksize]
             receive_data_chunk @databuffer
             @databuffer.clear
           end
@@ -630,7 +633,7 @@ module EventMachine
       # must return true or false to indicate whether the message has
       # been accepted for delivery.
       def receive_message
-        @@parms[:verbose] and $>.puts "Received complete message"
+        @parms[:verbose] and $>.puts "Received complete message"
         true
       end
 
