@@ -389,8 +389,9 @@ module EventMachine
           }
 
           d = receive_data_command
-
-          if d.respond_to?(:callback)
+          if d.respond_to?(:code)            
+             send_data "%d %s\r\n" % [d.code, (d.message rescue 'Internal error')]
+          elsif d.respond_to?(:callback)
             d.callback(&succeeded)
             d.errback(&failed)
           else
@@ -537,7 +538,10 @@ module EventMachine
           }
           d = receive_message
 
-          if d.respond_to?(:set_deferred_status)
+          if d.respond_to?(:code)            
+            send_data "%d %s\r\n" % [d.code, (d.message rescue 'Internal error')]
+            reset_protocol_state
+          elsif d.respond_to?(:set_deferred_status)
             d.callback(&succeeded)
             d.errback(&failed)
           else
