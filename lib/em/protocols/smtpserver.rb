@@ -295,7 +295,10 @@ module EventMachine
       # without dropping the connection, so that flag doesn't get cleared.
       #
       def process_ehlo domain
-        if receive_ehlo_domain domain
+        r = receive_ehlo_domain(domain.dup)
+        if r.respond_to? :code
+          send_data "%d %s\r\n" % [r.code, (r.message rescue 'Internal error')]
+        elsif r 
           send_data "250-#{get_server_domain}\r\n"
           if @parms[:starttls]
             send_data "250-STARTTLS\r\n"
@@ -313,7 +316,10 @@ module EventMachine
       end
 
       def process_helo domain
-        if receive_ehlo_domain domain.dup
+        r = receive_ehlo_domain(domain.dup)
+        if r.respond_to? :code
+          send_data "%d %s\r\n" % [r.code, (r.message rescue 'Internal error')]
+        elsif r
           send_data "250 #{get_server_domain}\r\n"
           reset_protocol_state
           @state << :ehlo
@@ -537,7 +543,6 @@ module EventMachine
             reset_protocol_state
           }
           d = receive_message
-
           if d.respond_to?(:code)            
             send_data "%d %s\r\n" % [d.code, (d.message rescue 'Internal error')]
             reset_protocol_state
@@ -574,8 +579,10 @@ module EventMachine
         "Ok EventMachine SMTP Server"
       end
 
-      # A false response from this user-overridable method will cause a
-      # 550 error to be returned to the remote client.
+      # A user-overridable callback when answering to EHLO or HELO
+      # An object responding to :code and :message will be sent directly, a 
+      # false value will trigger a 550 error to the remote client and
+      # a true value will continue
       #
       def receive_ehlo_domain domain
         true
